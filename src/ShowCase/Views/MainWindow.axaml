@@ -21,30 +21,14 @@
 
         <TextBlock Text="{Binding Greeting}" Margin="4" FontSize="28" />
 
-        <Grid ColumnDefinitions="*,*" MinHeight="300" Margin="4">
-
-			<ListBox x:Name="ListBox1"
-                     dd:DragDrop.IsDragSource="True"
-                     dd:DragDrop.IsDropTarget="True"
-                     SelectionMode="Multiple"
-                     MinWidth="200"
-                     Margin="0 4 2 4"
-                     Grid.Column="0">
-                <ListBoxItem>Item 1</ListBoxItem>
-                <ListBoxItem>Item 2</ListBoxItem>
-                <ListBoxItem>Item 3</ListBoxItem>
-                <ListBoxItem>Item 4</ListBoxItem>
-                <ListBoxItem>Item 5</ListBoxItem>
-            </ListBox>
-
-			<ListBox x:Name="ListBox2"
-                     dd:DragDrop.IsDropTarget="True"
-                     MinWidth="200"
-                     Margin="2 4 0 4"
-                     Grid.Column="1">
-            </ListBox>
-
-        </Grid>
+		<Border dd:DragDrop.IsDropTarget="True" 
+				dd:DragDrop.DropHandler="{Binding FileDropHandler}"
+				Background="LightBlue" Width="200" Height="100">
+			<TextBlock TextWrapping="Wrap" HorizontalAlignment="Center" 
+					   VerticalAlignment="Center"
+					   Text="{Binding DroppedFile}"
+					   />
+		</Border>
 
 	</StackPanel>
 
