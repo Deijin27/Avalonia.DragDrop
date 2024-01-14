@@ -17,6 +17,13 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
+	<Window.Styles>
+		<Style Selector="TextBlock">
+			<Setter Property="HorizontalAlignment" Value="Center"/>
+			<Setter Property="VerticalAlignment" Value="Center"/>
+		</Style>
+	</Window.Styles>
+
     <StackPanel Orientation="Vertical">
 
         <TextBlock Text="{Binding Greeting}" Margin="4" FontSize="28" />
@@ -24,11 +31,28 @@
 		<Border dd:DragDrop.IsDropTarget="True" 
 				dd:DragDrop.DropHandler="{Binding FileDropHandler}"
 				Background="LightBlue" Width="200" Height="100">
-			<TextBlock TextWrapping="Wrap" HorizontalAlignment="Center" 
-					   VerticalAlignment="Center"
+			<TextBlock TextWrapping="Wrap"
 					   Text="{Binding DroppedFile}"
 					   />
 		</Border>
+
+		<StackPanel Orientation="Horizontal">
+			<Border Background="LightCoral" Width="40" Height="40"
+					dd:DragDrop.IsDragSource="True"
+					dd:DragDrop.DragHandler="{Binding TextDragHandlerA}">
+				<TextBlock Text="{Binding TextSourceA}"/>
+			</Border>
+			<Border Background="LightGreen" Width="40" Height="40"
+					dd:DragDrop.IsDragSource="True"
+					dd:DragDrop.DragHandler="{Binding TextDragHandlerB}">
+				<TextBlock Text="{Binding TextSourceB}"/>
+			</Border>
+			<Border Background="Lavender" Width="40" Height="40"
+					dd:DragDrop.IsDropTarget="True"
+					dd:DragDrop.DropHandler="{Binding TextDropHandler}">
+				<TextBlock Text="{Binding TextSourceC}"/>
+			</Border>
+		</StackPanel>
 
 	</StackPanel>
 
