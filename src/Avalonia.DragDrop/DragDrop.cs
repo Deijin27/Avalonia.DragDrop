@@ -1,5 +1,14 @@
 ﻿using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Markup.Xaml.Templates;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
+using Avalonia.Media;
+using System.Diagnostics;
+using System;
+using System.Linq;
 
 namespace Avalonia.DragDrop
 {
@@ -25,16 +34,22 @@ namespace Avalonia.DragDrop
     public partial class DragDrop : AvaloniaObject
     {
         public static readonly AttachedProperty<bool> IsDragSourceProperty = 
-            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, bool>("IsDragSource", inherits: false);
+            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, bool>("IsDragSource");
 
         public static readonly AttachedProperty<bool> IsDropTargetProperty =
-            AvaloniaProperty.RegisterAttached<DragDrop, Interactive, bool>("IsDropTarget", inherits: false);
+            AvaloniaProperty.RegisterAttached<DragDrop, Interactive, bool>("IsDropTarget");
 
         public static readonly AttachedProperty<IDragSource?> DragHandlerProperty =
-            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, IDragSource?>("DragHandler", inherits: false);
+            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, IDragSource?>("DragHandler");
 
         public static readonly AttachedProperty<IDropTarget?> DropHandlerProperty =
-            AvaloniaProperty.RegisterAttached<DragDrop, Interactive, IDropTarget?>("DropHandler", inherits: false);
+            AvaloniaProperty.RegisterAttached<DragDrop, Interactive, IDropTarget?>("DropHandler");
+
+        public static readonly AttachedProperty<DataTemplate?> DragAdornerTemplateProperty =
+            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, DataTemplate?>("DragAdornerTemplate");
+
+        public static readonly AttachedProperty<Point> DragAdornerTranslationProperty =
+            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, Point>("DragAdornerTranslation");
 
         public static bool GetIsDragSource(InputElement e) => e.GetValue(IsDragSourceProperty);
         public static void SetIsDragSource(InputElement e, bool value) => e.SetValue(IsDragSourceProperty, value);
@@ -47,6 +62,12 @@ namespace Avalonia.DragDrop
 
         public static IDropTarget? GetDropHandler(InputElement e) => e.GetValue(DropHandlerProperty);
         public static void SetDropHandler(InputElement e, IDropTarget? value) => e.SetValue(DropHandlerProperty, value);
+
+        public static DataTemplate? GetDragAdornerTemplate(InputElement e) => e.GetValue(DragAdornerTemplateProperty);
+        public static void SetDragAdornerTemplate(InputElement e, DataTemplate? value) => e.SetValue(DragAdornerTemplateProperty, value);
+
+        public static Point GetDragAdornerTranslation(InputElement e) => e.GetValue(DragAdornerTranslationProperty);
+        public static void SetDragAdornerTranslation(InputElement e, Point value) => e.SetValue(DragAdornerTranslationProperty, value);
 
         static DragDrop()
         {
@@ -66,7 +87,7 @@ namespace Avalonia.DragDrop
             }
         }
 
-        private static void DragSource_PointerMoved(object? sender, PointerEventArgs e)
+        private static async void DragSource_PointerMoved(object? sender, PointerEventArgs e)
         {
             if (sender is not InputElement inputElement)
             {
@@ -91,7 +112,100 @@ namespace Avalonia.DragDrop
                 return;
             }
 
-            Input.DragDrop.DoDragDrop(e, result.Data, result.AllowedEffects);
+            // supports adorners
+            var adornerInfo = StartupAdorner(inputElement, e);
+
+
+            await Input.DragDrop.DoDragDrop(e, result.Data, result.AllowedEffects);
+
+            if (adornerInfo != null)
+            {
+                StopAdorner(adornerInfo);
+            }
+        }
+
+        
+
+        private static AdornerInfo? StartupAdorner(InputElement sender, PointerEventArgs e)
+        {
+            var adornerTemplate = GetDragAdornerTemplate(sender);
+            if (adornerTemplate == null)
+            {
+                return null;
+            }
+            var window = (sender as Window) ?? sender.FindAncestorOfType<Window>();
+            if (sender == null || window == null)
+            {
+                return null;
+            }
+            var adornerLayer = AdornerLayer.GetAdornerLayer(sender);
+            if (adornerLayer == null)
+            {
+                return null;
+            }
+            var thingToBeDrawn = new ContentPresenter
+            {
+                ContentTemplate = adornerTemplate,
+                IsHitTestVisible = false,
+            };
+            adornerLayer.Children.Add(thingToBeDrawn);
+            AdornerLayer.SetAdorner(window, thingToBeDrawn);
+
+            var adornerOffset = GetDragAdornerTranslation(sender);
+            var adornerPosition = e.GetPosition(window) + adornerOffset;
+            thingToBeDrawn.RenderTransform = new TranslateTransform(adornerPosition.X, adornerPosition.Y);
+            var originalWindowAllowDrop = window.GetValue(Input.DragDrop.AllowDropProperty);
+            _info = new AdornerInfo(adornerLayer, window, thingToBeDrawn, adornerPosition, originalWindowAllowDrop, adornerOffset);
+
+            
+            window.SetValue(Input.DragDrop.AllowDropProperty, true);
+            // set the DragOver handler on both to prevent flickering
+            window.AddHandler(Input.DragDrop.DragOverEvent, Window_DragOver);
+            window.AddHandler(Input.DragDrop.DragEnterEvent, Window_DragOver);
+            return _info;
+        }
+
+        private static AdornerInfo? _info;
+
+        private record AdornerInfo(
+            AdornerLayer AdornerLayer, 
+            Interactive Window, 
+            Control ThingToBeDrawn,
+            Point Start,
+            bool WindowOrignalAllowDrop,
+            Point AdornerOffset);
+
+        private static void Window_DragOver(object? sender, DragEventArgs e)
+        {
+            OnDragMove(e);
+            e.DragEffects = DragDropEffects.None;
+        }
+
+        private static void OnDragMove(DragEventArgs e)
+        {
+            if (_info == null)
+            {
+                return;
+            }
+
+            var adornerPosition = e.GetPosition(_info.Window) + _info.AdornerOffset;
+
+            _info.ThingToBeDrawn.RenderTransform = new TranslateTransform(adornerPosition.X, adornerPosition.Y);
+
+        }
+
+        private static void StopAdorner(AdornerInfo info)
+        {
+            _info = null;
+            AdornerLayer.SetAdorner(info.Window, null);
+            info.AdornerLayer.Children.Clear();
+
+            if (!info.WindowOrignalAllowDrop)
+            {
+                info.Window.SetValue(Input.DragDrop.AllowDropProperty, false);
+            }
+            info.Window.RemoveHandler(Input.DragDrop.DragOverEvent, Window_DragOver);
+            info.Window.RemoveHandler(Input.DragDrop.DragEnterEvent, Window_DragOver);
         }
 
         private static void OnIsDropTargetPropertyChanged(Interactive sender, AvaloniaPropertyChangedEventArgs e)
@@ -100,12 +214,15 @@ namespace Avalonia.DragDrop
             {
                 sender.SetValue(Input.DragDrop.AllowDropProperty, true);
                 sender.AddHandler(Input.DragDrop.DragOverEvent, DragOver);
+                sender.AddHandler(Input.DragDrop.DragEnterEvent, DragOver);
                 sender.AddHandler(Input.DragDrop.DropEvent, Drop);
             }
             else
             {
                 sender.SetValue(Input.DragDrop.AllowDropProperty, false);
+                // set the DragOver handler on both to prevent flickering
                 sender.RemoveHandler(Input.DragDrop.DragOverEvent, DragOver);
+                sender.RemoveHandler(Input.DragDrop.DragEnterEvent, DragOver);
                 sender.RemoveHandler(Input.DragDrop.DropEvent, Drop);
             }
         }
@@ -124,6 +241,9 @@ namespace Avalonia.DragDrop
             }
 
             handler.DragOver(e);
+            
+            OnDragMove(e);
+            e.Handled = true;
         }
 
         private static void Drop(object? sender, DragEventArgs e)
@@ -138,7 +258,6 @@ namespace Avalonia.DragDrop
             {
                 return;
             }
-
             handler.Drop(e);
         }
     }

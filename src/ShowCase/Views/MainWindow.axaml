@@ -7,6 +7,7 @@
         mc:Ignorable="d"
         d:DesignWidth="800"
         d:DesignHeight="450"
+		xmlns:local="clr-namespace:ShowCase.Views"
         Width="800"
         Height="450"
         x:Class="ShowCase.Views.MainWindow"
@@ -17,6 +18,14 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
+	<Window.Resources>
+		<DataTemplate x:Key="LetterDragTemplate">
+			<Border Width="30" Height="30" Background="Orange">
+				<TextBlock Text="Drag"/>
+			</Border>
+		</DataTemplate>
+	</Window.Resources>
+
 	<Window.Styles>
 		<Style Selector="TextBlock">
 			<Setter Property="HorizontalAlignment" Value="Center"/>
@@ -24,7 +33,8 @@
 		</Style>
 	</Window.Styles>
 
-    <StackPanel Orientation="Vertical">
+	<!-- DragDrop.AllowDrop="True" the DragWhatever only works on this-->
+    <StackPanel Orientation="Vertical" Background="Gray">
 
         <TextBlock Text="{Binding Greeting}" Margin="4" FontSize="28" />
 
@@ -39,7 +49,10 @@
 		<StackPanel Orientation="Horizontal">
 			<Border Background="LightCoral" Width="40" Height="40"
 					dd:DragDrop.IsDragSource="True"
-					dd:DragDrop.DragHandler="{Binding TextDragHandlerA}">
+					dd:DragDrop.DragHandler="{Binding TextDragHandlerA}"
+					dd:DragDrop.DragAdornerTemplate="{StaticResource LetterDragTemplate}"
+				    dd:DragDrop.DragAdornerTranslation="-10, -3"
+				    >
 				<TextBlock Text="{Binding TextSourceA}"/>
 			</Border>
 			<Border Background="LightGreen" Width="40" Height="40"
