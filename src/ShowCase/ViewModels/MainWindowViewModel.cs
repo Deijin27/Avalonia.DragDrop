@@ -83,7 +83,7 @@ public class TextDragHandler(string text) : IDragSource
     {
         var data = new DataObject();
         data.Set(DataFormats.Text, text);
-        return new DragStartResult(data, DragDropEffects.Copy);
+        return new DragStartResult(data, DragDropEffects.Copy, DataFormats.Text);
     }
 }
 

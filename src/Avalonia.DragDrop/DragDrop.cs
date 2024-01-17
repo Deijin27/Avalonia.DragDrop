@@ -9,13 +9,17 @@ using Avalonia.Media;
 using System.Diagnostics;
 using System;
 using System.Linq;
+using Avalonia.Data;
+using System.Collections;
+using Avalonia.Controls.Templates;
 
 namespace Avalonia.DragDrop
 {
-    public record DragStartResult(IDataObject Data, DragDropEffects AllowedEffects);
+    public record DragStartResult(IDataObject Data, DragDropEffects AllowedEffects, string DataFormat = IDragSource.DefaultDataFormat);
 
     public interface IDragSource
     {
+        public const string DefaultDataFormat = "Avalonia.DragDrop";
         // TODO: make our own wrapper for the data
         DragStartResult? StartDrag(PointerEventArgs dragInfo);
     }
@@ -33,6 +37,7 @@ namespace Avalonia.DragDrop
     /// </summary>
     public partial class DragDrop : AvaloniaObject
     {
+
         public static readonly AttachedProperty<bool> IsDragSourceProperty = 
             AvaloniaProperty.RegisterAttached<DragDrop, InputElement, bool>("IsDragSource");
 
@@ -45,8 +50,8 @@ namespace Avalonia.DragDrop
         public static readonly AttachedProperty<IDropTarget?> DropHandlerProperty =
             AvaloniaProperty.RegisterAttached<DragDrop, Interactive, IDropTarget?>("DropHandler");
 
-        public static readonly AttachedProperty<DataTemplate?> DragAdornerTemplateProperty =
-            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, DataTemplate?>("DragAdornerTemplate");
+        public static readonly AttachedProperty<IDataTemplate?> DragAdornerTemplateProperty =
+            AvaloniaProperty.RegisterAttached<DragDrop, InputElement, IDataTemplate?>("DragAdornerTemplate");
 
         public static readonly AttachedProperty<Point> DragAdornerTranslationProperty =
             AvaloniaProperty.RegisterAttached<DragDrop, InputElement, Point>("DragAdornerTranslation");
@@ -63,8 +68,8 @@ namespace Avalonia.DragDrop
         public static IDropTarget? GetDropHandler(InputElement e) => e.GetValue(DropHandlerProperty);
         public static void SetDropHandler(InputElement e, IDropTarget? value) => e.SetValue(DropHandlerProperty, value);
 
-        public static DataTemplate? GetDragAdornerTemplate(InputElement e) => e.GetValue(DragAdornerTemplateProperty);
-        public static void SetDragAdornerTemplate(InputElement e, DataTemplate? value) => e.SetValue(DragAdornerTemplateProperty, value);
+        public static IDataTemplate? GetDragAdornerTemplate(InputElement e) => e.GetValue(DragAdornerTemplateProperty);
+        public static void SetDragAdornerTemplate(InputElement e, IDataTemplate? value) => e.SetValue(DragAdornerTemplateProperty, value);
 
         public static Point GetDragAdornerTranslation(InputElement e) => e.GetValue(DragAdornerTranslationProperty);
         public static void SetDragAdornerTranslation(InputElement e, Point value) => e.SetValue(DragAdornerTranslationProperty, value);
@@ -113,7 +118,7 @@ namespace Avalonia.DragDrop
             }
 
             // supports adorners
-            var adornerInfo = StartupAdorner(inputElement, e);
+            var adornerInfo = StartupAdorner(inputElement, e, result);
 
 
             await Input.DragDrop.DoDragDrop(e, result.Data, result.AllowedEffects);
@@ -126,9 +131,9 @@ namespace Avalonia.DragDrop
 
         
 
-        private static AdornerInfo? StartupAdorner(InputElement sender, PointerEventArgs e)
+        private static AdornerInfo? StartupAdorner(InputElement sender, PointerEventArgs e, DragStartResult dragInfo)
         {
-            var adornerTemplate = GetDragAdornerTemplate(sender);
+            IDataTemplate? adornerTemplate = GetDragAdornerTemplate(sender);
             if (adornerTemplate == null)
             {
                 return null;
@@ -143,11 +148,9 @@ namespace Avalonia.DragDrop
             {
                 return null;
             }
-            var thingToBeDrawn = new ContentPresenter
-            {
-                ContentTemplate = adornerTemplate,
-                IsHitTestVisible = false,
-            };
+
+            var thingToBeDrawn = GetThingToBeDrawn(dragInfo, adornerTemplate);
+            
             adornerLayer.Children.Add(thingToBeDrawn);
             AdornerLayer.SetAdorner(window, thingToBeDrawn);
 
@@ -163,6 +166,39 @@ namespace Avalonia.DragDrop
             window.AddHandler(Input.DragDrop.DragOverEvent, Window_DragOver);
             window.AddHandler(Input.DragDrop.DragEnterEvent, Window_DragOver);
             return _info;
+        }
+
+        private static Control GetThingToBeDrawn(DragStartResult dragInfo, IDataTemplate adornerTemplate)
+        {
+            Control result;
+            var customData = dragInfo.Data.Get(dragInfo.DataFormat);
+            if (customData is IEnumerable enumerable and not string)
+            {
+                var items = enumerable.Cast<object>().ToList();
+                //var maxItemsCount = DragDrop.TryGetDragPreviewMaxItemsCount(dragInfo, sender);
+
+                result = new ItemsControl
+                {
+                    ItemsSource = items,
+                    ItemTemplate = adornerTemplate,
+                };
+
+                // The ItemsControl doesn't display unless we create a grid to contain it.
+                //var grid = new Grid();
+                //grid.Children.Add(itemsControl);
+                //adornment = grid;
+            }
+            else
+            {
+                result = new ContentPresenter
+                {
+                    ContentTemplate = adornerTemplate,
+                    Content = customData
+                };
+            }
+            result.IsHitTestVisible = false;
+            result.Tag = dragInfo;
+            return result;
         }
 
         private static AdornerInfo? _info;

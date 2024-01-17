@@ -21,7 +21,7 @@
 	<Window.Resources>
 		<DataTemplate x:Key="LetterDragTemplate">
 			<Border Width="30" Height="30" Background="Orange">
-				<TextBlock Text="Drag"/>
+				<TextBlock Text="{Binding}"/>
 			</Border>
 		</DataTemplate>
 	</Window.Resources>
